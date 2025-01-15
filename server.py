@@ -1,102 +1,95 @@
 import socket
 import threading
-import os
-from cryptography.fernet import Fernet
 
-# Geração e armazenamento da chave de criptografia
-key = Fernet.generate_key()
-cipher = Fernet(key)
+# Configurações do servidor
+HOST = '127.0.0.2'  # Endereço IP do servidor (localhost)
+PORT = 12345        # Porta onde o servidor ouvirá conexões
 
-# Lista de clientes conectados
-clients = []
+# Criação do socket do servidor
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Socket TCP
+server.bind((HOST, PORT))  # Associa o socket ao endereço e porta configurados
+server.listen()  # Habilita o servidor para aceitar conexões
 
-# Função para carregar os usuários registrados
-def load_users():
-    users = {}
-    if os.path.exists('users.txt'):
-        with open('users.txt', 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    login, password = line.split(':')
-                    users[login] = password
-    return users
+# Listas para armazenar informações dos clientes conectados
+clients = []    # Lista de sockets dos clientes conectados
+usernames = []  # Lista de nomes de usuários correspondentes
 
-# Função para salvar novos usuários
-def save_user(login, password):
-    with open('users.txt', 'a') as f:
-        f.write(f'{login}:{password}\n')
-
-# Função para lidar com mensagens de um cliente específico
-def handle_client(client_socket, address):
-    print(f"Nova conexão: {address}")
-    client_socket.send(b"Digite 'login' para acessar ou 'register' para se cadastrar:")
-
-    users = load_users()  # Carrega usuários registrados inicialmente
-
-    while True:
-        option = client_socket.recv(1024).decode().strip().lower()
-        if option == 'register':
-            client_socket.send(b"Escolha um login:")
-            login = client_socket.recv(1024).decode().strip()
-            if login in users:
-                client_socket.send(b"Usuario ja existe. Tente novamente.\nDigite 'login' ou 'register':")
-                continue
-            client_socket.send(b"Escolha uma senha:")
-            password = client_socket.recv(1024).decode().strip()
-            save_user(login, password)
-            users = load_users()  # Recarrega os usuários após cadastro
-            client_socket.send(b"Cadastro concluido! Agora voce pode fazer login.\nDigite 'login' para continuar:")
-        elif option == 'login':
-            client_socket.send(b"Login:")
-            login = client_socket.recv(1024).decode().strip()
-            client_socket.send(b"Senha:")
-            password = client_socket.recv(1024).decode().strip()
-            if login in users and users[login] == password:
-                client_socket.send(b"Login bem-sucedido! Bem-vindo ao chat.")
-                break
-            else:
-                client_socket.send(b"Credenciais invalidas. Tente novamente.\nDigite 'login' ou 'register':")
-        else:
-            client_socket.send(b"Opcao invalida. Digite 'login' ou 'register':")
+def broadcast(message, exclude_client=None):
+    """
+    Envia mensagens para todos os clientes conectados, exceto o cliente que gerou a mensagem.
     
-    print(f"Usuário {login} conectado.")
-    clients.append(client_socket)
-    client_socket.send(key)  # Envia a chave de criptografia ao cliente
+    Args:
+    - message (bytes): Mensagem a ser enviada.
+    - exclude_client (socket, optional): Cliente a ser excluído do envio.
+    """
+    for client in clients:
+        if client != exclude_client:  # Não envia a mensagem ao cliente que gerou o evento
+            client.send(message)
 
+def update_user_list():
+    """
+    Atualiza a lista de usuários online para todos os clientes conectados.
+    Envia uma mensagem especial no formato "USERS:username1,username2,..." para todos.
+    """
+    user_list_message = "USERS:" + ",".join(usernames)  # Formata a lista de usuários como string
+    broadcast(user_list_message.encode())  # Envia a mensagem para todos os clientes
+
+def handle_client(client):
+    """
+    Gerencia a comunicação com um cliente específico.
+    Lida com mensagens enviadas pelo cliente e desconexões.
+    
+    Args:
+    - client (socket): O socket do cliente conectado.
+    """
     while True:
         try:
-            encrypted_message = client_socket.recv(1024)
-            if not encrypted_message:
+            # Recebe mensagens do cliente
+            message = client.recv(1024)  # Limita a mensagem a 1024 bytes
+            if not message:
                 break
-            message = cipher.decrypt(encrypted_message).decode()
-            message = message.encode('ascii', 'ignore').decode()  # Remove não ASCII
-            print(f"[{login}] {message}")
-            
-            # Transmite a mensagem para todos os outros clientes
-            for c in clients:
-                if c != client_socket:
-                    c.send(cipher.encrypt(f"[{login}] {message}".encode()))
-        except Exception as e:
-            print(f"Erro: {e}")
+            # Difunde a mensagem para outros clientes
+            broadcast(message, exclude_client=client)
+        except:
+            # Em caso de erro, remove o cliente da lista
+            index = clients.index(client)  # Localiza o índice do cliente na lista
+            clients.remove(client)  # Remove o cliente da lista de sockets
+            username = usernames.pop(index)  # Remove o nome de usuário correspondente
+            client.close()  # Fecha o socket do cliente
+            print(f"{username} saiu do chat.")  # Loga no servidor
+            update_user_list()  # Atualiza a lista de usuários online para todos
             break
-    
-    print(f"Usuário {login} desconectado.")
-    clients.remove(client_socket)
-    client_socket.close()
 
-# Configuração do servidor
-def main():
-    host = '0.0.0.0'
-    port = 12345
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
-    server_socket.listen(5)
-    print(f"Servidor escutando em {host}:{port}")
-    
+def receive_connections():
+    """
+    Aceita conexões de clientes e inicia uma thread para gerenciar cada conexão.
+    """
+    print("Servidor ativo e aguardando conexões...")
     while True:
-        client_socket, address = server_socket.accept()
-        threading.Thread(target=handle_client, args=(client_socket, address)).start()
+        # Aceita uma nova conexão
+        client, address = server.accept()
+        print(f"Conexão estabelecida com {address}")
 
-if __name__ == '__main__':
-    main()
+        # Solicita o nome de usuário do cliente
+        client.send("USERNAME".encode())  # Envia uma solicitação para o cliente
+        username = client.recv(1024).decode()  # Recebe o nome de usuário do cliente
+
+        # Verifica se o nome de usuário já está em uso
+        if username in usernames:
+            client.send("ERRO: Nome de usuário já está em uso.".encode())
+            client.close()  # Fecha a conexão caso o nome já esteja em uso
+            continue
+
+        # Adiciona o cliente à lista de conexões
+        usernames.append(username)  # Adiciona o nome de usuário à lista
+        clients.append(client)  # Adiciona o socket à lista de clientes
+
+        print(f"Usuário {username} entrou no chat.")  # Loga a entrada do usuário
+        update_user_list()  # Atualiza a lista de usuários online para todos os clientes
+
+        # Cria uma thread para gerenciar a comunicação com o cliente
+        thread = threading.Thread(target=handle_client, args=(client,))
+        thread.start()
+
+# Inicia o servidor
+receive_connections()
