@@ -80,6 +80,26 @@ def chat_screen(username):
             client.send(msg.encode())  # Envia a mensagem ao servidor
             input_box.delete(0, tk.END)  # Limpa a caixa de entrada
 
+    def send_file():
+        filename = file_name_box.get()
+
+        try: 
+           # Reading file and sending data to server 
+            fi = open(filename, "r") 
+            data = fi.read() 
+            if data:
+            
+                while data: 
+                    client.send(str(data).encode()) 
+                    data = fi.read() 
+                # File is closed after data is sent 
+                fi.close() 
+            
+            file_name_box.delete(0, tk.END)  # Limpa a caixa de entrada
+    
+        except IOError: 
+            print('Nome de arquivo invalido ou arquivo não existe') 
+
     # Função para atualizar a lista de usuários online
     def update_user_list(users):
         user_list.delete(0, tk.END)  # Limpa a lista de usuários
@@ -114,6 +134,16 @@ def chat_screen(username):
     send_button = tk.Button(chat_window, text="Enviar", command=send_message, font=("Arial", 12), 
                              bg="#007bff", fg="#ffffff", activebackground="#0056b3", activeforeground="#ffffff")
     send_button.pack(pady=5)
+
+
+    file_name_box = tk.Entry(chat_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff")
+    file_name_box.pack(fill=tk.X, padx=10, pady=5)
+
+
+    send_file_button = tk.Button(chat_window, text="Enviar Arquivo", command=send_file, font=("Arial", 12), 
+                             bg="#007bff", fg="#ffffff", activebackground="#0056b3", activeforeground="#ffffff")
+    send_file_button.pack(pady=5)
+
 
     # Thread para receber mensagens do servidor sem bloquear a interface gráfica
     thread = threading.Thread(target=receive_messages, daemon=True)

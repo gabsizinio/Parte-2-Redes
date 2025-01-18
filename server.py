@@ -14,6 +14,9 @@ server.listen()  # Habilita o servidor para aceitar conexões
 clients = []    # Lista de sockets dos clientes conectados
 usernames = []  # Lista de nomes de usuários correspondentes
 
+fileno = 0
+idx = 0
+
 def broadcast(message, exclude_client=None):
     """
     Envia mensagens para todos os clientes conectados, exceto o cliente que gerou a mensagem.
@@ -45,12 +48,34 @@ def handle_client(client):
     while True:
         try:
             # Recebe mensagens do cliente
-            message = client.recv(1024)  # Limita a mensagem a 1024 bytes
+            message = client.recv(1024)  # Limita a mensagem a 1024 bytes  # adicionei o decode
+            
             if not message:
-                break
-            # Difunde a mensagem para outros clientes
-            broadcast(message, exclude_client=client)
+                break        
+            
+            if message.startswith(b"FILE:"): #check if is file
+
+                print("entrou")
+                # Creating a new file at server end and writing the data 
+                filename = 'output'+str(fileno)+'.txt'
+                fileno = fileno+1
+                fo = open(filename, "w") 
+                
+                while message: 
+                    if not message: 
+                        break
+                    else: 
+                        fo.write(message) 
+                        message = client.recv(1024).decode()
+                print()
+                print('Received successfully! New filename is:', filename) 
+                fo.close() 
+            
+            else:    
+                # Difunde a mensagem para outros clientes
+                broadcast(message, exclude_client=client)
         except:
+            print(message)
             # Em caso de erro, remove o cliente da lista
             index = clients.index(client)  # Localiza o índice do cliente na lista
             clients.remove(client)  # Remove o cliente da lista de sockets
