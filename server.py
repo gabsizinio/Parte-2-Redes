@@ -25,7 +25,7 @@ def broadcast(message, exclude_client=None):
     - message (bytes): Mensagem a ser enviada.
     - exclude_client (socket, optional): Cliente a ser excluído do envio.
     """
-    for client in clients:
+    for client in clients:   
         if client != exclude_client:  # Não envia a mensagem ao cliente que gerou o evento
             client.send(message)
 
@@ -73,7 +73,11 @@ def handle_client(client):
             
             else:    
                 # Difunde a mensagem para outros clientes
-                broadcast(message, exclude_client=client)
+                index = clients.index(client)
+                username = usernames[index]
+                # Inclui o autor na mensagem
+                formatted_message = f"{username}: {message}"
+                broadcast(formatted_message.encode('utf-8'), exclude_client=client)
         except:
             print(message)
             # Em caso de erro, remove o cliente da lista

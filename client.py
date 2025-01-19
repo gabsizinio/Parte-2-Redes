@@ -59,17 +59,17 @@ def chat_screen(username):
     def receive_messages():
         while True:
             try:
-                msg = client.recv(1024).decode()  # Recebe mensagens do servidor
+                # Recebe e decodifica a mensagem corretamente
+                msg = client.recv(1024).decode('utf-8')
                 if msg.startswith("USERS:"):  # Atualização da lista de usuários online
                     update_user_list(msg[6:].split(","))  # Atualiza a lista de usuários
                 else:
-                    # Insere mensagens na área de texto
+                    # Exibe a mensagem decodificada sem o prefixo b''
                     message_box.config(state=tk.NORMAL)
-                    message_box.insert(tk.END, f"{msg}\n")
+                    message_box.insert(tk.END, f"{msg}\n")  # Insere a mensagem formatada
                     message_box.config(state=tk.DISABLED)
                     message_box.see(tk.END)  # Rola automaticamente para a última mensagem
             except Exception as e:
-                # Exibe erro no console caso ocorra um problema ao receber mensagens
                 print(f"Erro ao receber mensagem: {e}")
                 break
 
@@ -77,7 +77,7 @@ def chat_screen(username):
     def send_message():
         msg = input_box.get()  # Obtém a mensagem da caixa de entrada
         if msg:  # Verifica se a mensagem não está vazia
-            client.send(msg.encode())  # Envia a mensagem ao servidor
+            client.send(msg.encode('utf-8'))  # Envia a mensagem ao servidor
             input_box.delete(0, tk.END)  # Limpa a caixa de entrada
         
             # Exibe a mensagem enviada na tela do cliente
