@@ -4,6 +4,7 @@ import threading
 # Configurações do servidor
 HOST = '127.0.0.2'  # Endereço IP do servidor (localhost)
 PORT = 12345        # Porta onde o servidor ouvirá conexões
+FORMAT = "utf-8"
 
 # Criação do socket do servidor
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Socket TCP
@@ -14,6 +15,9 @@ server.listen()  # Habilita o servidor para aceitar conexões
 clients = []    # Lista de sockets dos clientes conectados
 usernames = []  # Lista de nomes de usuários correspondentes
 
+fileno = 0
+idx = 0
+
 def broadcast(message, exclude_client=None):
     """
     Envia mensagens para todos os clientes conectados, exceto o cliente que gerou a mensagem.
@@ -22,7 +26,7 @@ def broadcast(message, exclude_client=None):
     - message (bytes): Mensagem a ser enviada.
     - exclude_client (socket, optional): Cliente a ser excluído do envio.
     """
-    for client in clients:
+    for client in clients:   
         if client != exclude_client:  # Não envia a mensagem ao cliente que gerou o evento
             client.send(message)
 
@@ -32,7 +36,7 @@ def update_user_list():
     Envia uma mensagem especial no formato "USERS:username1,username2,..." para todos.
     """
     user_list_message = "USERS:" + ",".join(usernames)  # Formata a lista de usuários como string
-    broadcast(user_list_message.encode())  # Envia a mensagem para todos os clientes
+    broadcast(user_list_message.encode(FORMAT))  # Envia a mensagem para todos os clientes
 
 def handle_client(client):
     """
@@ -45,12 +49,45 @@ def handle_client(client):
     while True:
         try:
             # Recebe mensagens do cliente
-            message = client.recv(1024)  # Limita a mensagem a 1024 bytes
+            message = client.recv(1024)  # Limita a mensagem a 1024 bytes  # adicionei o decode
+            
             if not message:
-                break
-            # Difunde a mensagem para outros clientes
-            broadcast(message, exclude_client=client)
+                break        
+            
+            if message.startswith(b"FILE:"): #check if is file
+
+                print("entrou")
+                # Creating a new file at server end and writing the data 
+                filename = 'output'+str(fileno)+'.txt'
+                fileno = fileno+1
+                fo = open(filename, "w") 
+                
+                while message: 
+                    if not message: 
+                        break
+                    else: 
+                        fo.write(message) 
+                        message = client.recv(1024).decode(FORMAT)
+                print()
+                print('Received successfully! New filename is:', filename) 
+                fo.close() 
+            
+            else:    
+                 # Decode the message before formatting
+
+                decoded_message = message.decode(FORMAT)  
+
+                # Difunde a mensagem para outros clientes
+
+                index = clients.index(client)
+                username = usernames[index]
+
+                # Inclui o autor na mensagem
+                formatted_message = f"{username}: {decoded_message}"
+
+                broadcast(formatted_message.encode(FORMAT), exclude_client=client)
         except:
+            print(message)
             # Em caso de erro, remove o cliente da lista
             index = clients.index(client)  # Localiza o índice do cliente na lista
             clients.remove(client)  # Remove o cliente da lista de sockets
@@ -71,12 +108,12 @@ def receive_connections():
         print(f"Conexão estabelecida com {address}")
 
         # Solicita o nome de usuário do cliente
-        client.send("USERNAME".encode())  # Envia uma solicitação para o cliente
-        username = client.recv(1024).decode()  # Recebe o nome de usuário do cliente
+        client.send("USERNAME".encode(FORMAT))  # Envia uma solicitação para o cliente
+        username = client.recv(1024).decode(FORMAT)  # Recebe o nome de usuário do cliente
 
         # Verifica se o nome de usuário já está em uso
         if username in usernames:
-            client.send("ERRO: Nome de usuário já está em uso.".encode())
+            client.send("ERRO: Nome de usuário já está em uso.".encode(FORMAT))
             client.close()  # Fecha a conexão caso o nome já esteja em uso
             continue
 
