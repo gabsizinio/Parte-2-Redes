@@ -79,6 +79,12 @@ def chat_screen(username):
         if msg:  # Verifica se a mensagem não está vazia
             client.send(msg.encode())  # Envia a mensagem ao servidor
             input_box.delete(0, tk.END)  # Limpa a caixa de entrada
+        
+            # Exibe a mensagem enviada na tela do cliente
+            message_box.config(state=tk.NORMAL)
+            message_box.insert(tk.END, f"Você: {msg}\n")  # Adiciona "Você: " antes da mensagem
+            message_box.config(state=tk.DISABLED)
+            message_box.see(tk.END)  # Rola automaticamente para a última mensagem
 
     def send_file():
         filename = file_name_box.get()
