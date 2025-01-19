@@ -6,6 +6,7 @@ from tkinter import scrolledtext, messagebox
 # Configuração do host e porta do servidor
 HOST = '127.0.0.2'  # Endereço do servidor (localhost)
 PORT = 12345        # Porta para comunicação
+FORMAT = "utf-8"
 
 # Criação do socket para comunicação com o servidor
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,8 +33,8 @@ def login_screen():
             try:
                 # Tenta conectar ao servidor
                 client.connect((HOST, PORT))
-                client.send(username.encode())  # Envia o nome de usuário ao servidor
-                response = client.recv(1024).decode()  # Recebe a resposta do servidor
+                client.send(username.encode(FORMAT))  # Envia o nome de usuário ao servidor
+                response = client.recv(1024).decode(FORMAT)  # Recebe a resposta do servidor
                 if response.startswith("ERRO"):  # Verifica se houve erro
                     messagebox.showerror("Erro", response)  # Mostra mensagem de erro
                     client.close()  # Fecha a conexão
@@ -60,7 +61,7 @@ def chat_screen(username):
         while True:
             try:
                 # Recebe e decodifica a mensagem corretamente
-                msg = client.recv(1024).decode('utf-8')
+                msg = client.recv(1024).decode(FORMAT)
                 if msg.startswith("USERS:"):  # Atualização da lista de usuários online
                     update_user_list(msg[6:].split(","))  # Atualiza a lista de usuários
                 else:
@@ -77,7 +78,7 @@ def chat_screen(username):
     def send_message():
         msg = input_box.get()  # Obtém a mensagem da caixa de entrada
         if msg:  # Verifica se a mensagem não está vazia
-            client.send(msg.encode('utf-8'))  # Envia a mensagem ao servidor
+            client.send(msg.encode(FORMAT))  # Envia a mensagem ao servidor
             input_box.delete(0, tk.END)  # Limpa a caixa de entrada
         
             # Exibe a mensagem enviada na tela do cliente
@@ -96,7 +97,7 @@ def chat_screen(username):
             if data:
             
                 while data: 
-                    client.send(str(data).encode()) 
+                    client.send(str(data).encode(FORMAT)) 
                     data = fi.read() 
                 # File is closed after data is sent 
                 fi.close() 
