@@ -6,6 +6,7 @@ from tkinter import scrolledtext, messagebox
 # Configuração do host e porta do servidor
 HOST = '127.0.0.2'  # Endereço do servidor (localhost)
 PORT = 12345        # Porta para comunicação
+FORMAT = "utf-8"
 
 # Criação do socket para comunicação com o servidor
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -15,7 +16,7 @@ def login_screen():
     # Configuração da janela de login
     login_window = tk.Tk()
     login_window.title("Login")  # Título da janela
-    login_window.geometry("300x200")  # Dimensões da janela
+    login_window.geometry("600x400")  # Dimensões da janela
     login_window.config(bg="#1c1c1c")  # Cor de fundo da janela
 
     # Rótulo para entrada do nome de usuário
@@ -25,19 +26,29 @@ def login_screen():
     username_entry = tk.Entry(login_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff")
     username_entry.pack(pady=5)
 
+    # Rótulo para entrada da senha
+    tk.Label(login_window, text="Senha:", font=("Arial", 12), bg="#1c1c1c", fg="#ffffff").pack(pady=10)
+
+    # Caixa de entrada para a senha com "***" para ocultar a senha
+    password_entry = tk.Entry(login_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff", show="*")
+    password_entry.pack(pady=5)
+
+
+
     # Função para realizar o login
     def login():
         username = username_entry.get()  # Obtém o nome de usuário digitado
+        username += ":" + password_entry.get()  # Adiciona a senha ao nome de usuário
         if username:  # Verifica se o nome não está vazio
             try:
                 # Tenta conectar ao servidor
                 client.connect((HOST, PORT))
-                client.send(username.encode())  # Envia o nome de usuário ao servidor
-                response = client.recv(1024).decode()  # Recebe a resposta do servidor
+                client.send(username.encode(FORMAT))  # Envia o nome de usuário ao servidor
+                response = client.recv(1024).decode(FORMAT)  # Recebe a resposta do servidor
                 if response.startswith("ERRO"):  # Verifica se houve erro
                     messagebox.showerror("Erro", response)  # Mostra mensagem de erro
                     client.close()  # Fecha a conexão
-                else:
+                else:  # Verifica se o login foi bem-sucedido
                     login_window.destroy()  # Fecha a janela de login
                     chat_screen(username)  # Abre a tela de chat
             except Exception as e:
@@ -59,17 +70,17 @@ def chat_screen(username):
     def receive_messages():
         while True:
             try:
-                msg = client.recv(1024).decode()  # Recebe mensagens do servidor
+                # Recebe e decodifica a mensagem corretamente
+                msg = client.recv(1024).decode(FORMAT)
                 if msg.startswith("USERS:"):  # Atualização da lista de usuários online
                     update_user_list(msg[6:].split(","))  # Atualiza a lista de usuários
                 else:
-                    # Insere mensagens na área de texto
+                    # Exibe a mensagem decodificada sem o prefixo b''
                     message_box.config(state=tk.NORMAL)
-                    message_box.insert(tk.END, f"{msg}\n")
+                    message_box.insert(tk.END, f"{msg}\n")  # Insere a mensagem formatada
                     message_box.config(state=tk.DISABLED)
                     message_box.see(tk.END)  # Rola automaticamente para a última mensagem
             except Exception as e:
-                # Exibe erro no console caso ocorra um problema ao receber mensagens
                 print(f"Erro ao receber mensagem: {e}")
                 break
 
@@ -77,8 +88,37 @@ def chat_screen(username):
     def send_message():
         msg = input_box.get()  # Obtém a mensagem da caixa de entrada
         if msg:  # Verifica se a mensagem não está vazia
-            client.send(msg.encode())  # Envia a mensagem ao servidor
+            client.send(msg.encode(FORMAT))  # Envia a mensagem ao servidor
             input_box.delete(0, tk.END)  # Limpa a caixa de entrada
+        
+            # Exibe a mensagem enviada na tela do cliente
+            message_box.config(state=tk.NORMAL)
+            message_box.insert(tk.END, f"Você: {msg}\n")  # Adiciona "Você: " antes da mensagem
+            message_box.config(state=tk.DISABLED)
+            message_box.see(tk.END)  # Rola automaticamente para a última mensagem
+
+    def send_file():
+        filename = file_name_box.get()
+
+
+        try: 
+
+            with open(filename, "rb") as fi:  
+
+                # Envia arquivo avisando que é arquivo
+                client.send(f"FILE:{filename}".encode(FORMAT))
+
+                data = fi.read(1024)
+
+                while data: 
+
+                    client.send(data)  
+                    data = fi.read(1024) 
+
+            file_name_box.delete(0, tk.END)  # Limpa a caixa de entrada
+
+        except IOError: 
+            print('Nome de arquivo invalido ou arquivo não existe') 
 
     # Função para atualizar a lista de usuários online
     def update_user_list(users):
@@ -86,10 +126,11 @@ def chat_screen(username):
         for user in users:
             user_list.insert(tk.END, user)  # Adiciona os usuários atualizados
 
+    name_chat = username.split(":")[0]
     # Configuração da janela de chat
     chat_window = tk.Tk()
-    chat_window.title(f"Chat - {username}")  # Título da janela com o nome do usuário
-    chat_window.geometry("600x400")  # Dimensões da janela
+    chat_window.title(f"Chat - {name_chat}")  # Título da janela com o nome do usuário
+    chat_window.geometry("1200x800")  # Dimensões da janela
     chat_window.config(bg="#1c1c1c")  # Cor de fundo da janela
 
     # Layout principal
@@ -114,6 +155,16 @@ def chat_screen(username):
     send_button = tk.Button(chat_window, text="Enviar", command=send_message, font=("Arial", 12), 
                              bg="#007bff", fg="#ffffff", activebackground="#0056b3", activeforeground="#ffffff")
     send_button.pack(pady=5)
+
+
+    file_name_box = tk.Entry(chat_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff")
+    file_name_box.pack(fill=tk.X, padx=10, pady=5)
+
+
+    send_file_button = tk.Button(chat_window, text="Enviar Arquivo", command=send_file, font=("Arial", 12), 
+                             bg="#007bff", fg="#ffffff", activebackground="#0056b3", activeforeground="#ffffff")
+    send_file_button.pack(pady=5)
+
 
     # Thread para receber mensagens do servidor sem bloquear a interface gráfica
     thread = threading.Thread(target=receive_messages, daemon=True)
