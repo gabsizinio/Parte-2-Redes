@@ -8,8 +8,26 @@ HOST = '127.0.0.2'  # Endereço do servidor (localhost)
 PORT = 12345        # Porta para comunicação
 FORMAT = "utf-8"
 
-# Criação do socket para comunicação com o servidor
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def connect_to_server(host, port):
+    # Tentativa de conexão UDP
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        client.sendto(b"", (host, port))  # Envia mensagem via UDP
+        client.recvfrom(1024)  # Espera uma resposta
+    except socket.error:
+        client.close()  # Fecha o socket UDP antes de tentar a conexão TCP
+
+        # Tentativa de conexão TCP
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Cria um novo socket para TCP
+        try:
+            pass
+        except socket.error:
+            client.close()  # Fecha o socket TCP em caso de falha
+            return None
+        else:
+            return client
+    else:
+        return client
 
 # Tela de login
 def login_screen():
@@ -87,7 +105,7 @@ def chat_screen(username):
             message_box.config(state=tk.DISABLED)
             message_box.see(tk.END)  # Rola automaticamente para a última mensagem
 
-    def send_file():
+     def send_file():
         filename = file_name_box.get()
 
 
@@ -163,4 +181,5 @@ def chat_screen(username):
 
 # Execução principal do programa
 if __name__ == "__main__":
+    client = connect_to_server(HOST, PORT)
     login_screen()  # Inicia o programa com a tela de login
