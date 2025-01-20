@@ -12,7 +12,7 @@ def connect_to_server(host, port):
     # Tentativa de conexão UDP
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        client.sendto(b"Hello", (host, port))  # Envia mensagem via UDP
+        client.sendto(b"", (host, port))  # Envia mensagem via UDP
         client.recvfrom(1024)  # Espera uma resposta
     except socket.error:
         client.close()  # Fecha o socket UDP antes de tentar a conexão TCP

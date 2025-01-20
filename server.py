@@ -230,7 +230,8 @@ def receive_messages_udp(server_socket):
 
             # Processa mensagens recebidas
             decoded_message = message.decode(FORMAT)
-            print(f"Mensagem recebida de {client_address}: {decoded_message}")
+            if(decoded_message != ""):
+                print(f"Mensagem recebida de {username}: {decoded_message}")
 
             # Difunde a mensagem para todos os clientes, exceto o remetente
             formatted_message = f"{usernames[clients.index(client_address)]}: {decoded_message}"
