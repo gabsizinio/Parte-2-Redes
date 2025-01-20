@@ -65,31 +65,33 @@ def handle_client_tcp(client):
     Args:
     - client (socket): O socket do cliente conectado.
     """
+    global fileno 
     while True:
         try:
-            # Recebe mensagens do cliente
-            message = client.recv(1024)  # Limita a mensagem a 1024 bytes  # adicionei o decode
+            
+            message = client.recv(1024)  # Limite do tamanho da mensagem 1024
             
             if not message:
                 break        
             
-            if message.startswith(b"FILE:"): #check if is file
+            if message.startswith(b"FILE:"):  # Verifica se mensagem é arquivo
+                print("Envio de arquivo iniciado")
 
-                print("entrou")
-                # Creating a new file at server end and writing the data 
-                filename = 'output'+str(fileno)+'.txt'
-                fileno = fileno+1
-                fo = open(filename, "w") 
-                
-                while message: 
-                    if not message: 
-                        break
-                    else: 
-                        fo.write(message) 
-                        message = client.recv(1024).decode(FORMAT)
-                print()
-                print('Received successfully! New filename is:', filename) 
-                fo.close() 
+                filename = message[5:].decode(FORMAT)
+
+                fileno += 1
+                full_filename = f'output{fileno}.txt'
+
+                with open(full_filename, "wb") as fo:
+                    while True:
+                        message = client.recv(1024)
+                        if not message:
+                            break
+                        fo.write(message)
+
+                print('Arquivo recebido com sucesso! Nome do novo arquivo:', full_filename) 
+                # Notifica usuarios do arquivo recebido
+                broadcast_tcp(f"A new file has been uploaded: {full_filename}".encode(FORMAT), exclude_client = client)
             
             else:    
                  # Decode the message before formatting
@@ -124,6 +126,8 @@ def handle_client_udp(server_socket):
     Args:
     - server_socket (socket): O socket do servidor configurado para UDP.
     """
+    
+    # Não há envio de arquivos por socket UDP
     print("Servidor UDP está pronto para receber mensagens.")
     
     while True:
@@ -133,32 +137,13 @@ def handle_client_udp(server_socket):
 
             if not message:
                 continue  # Ignora mensagens vazias
+           
+            decoded_message = message.decode('utf-8')
+            print(f"Mensagem recebida de {client_address}: {decoded_message}")
 
-            # Verifica se a mensagem é um arquivo (usando um prefixo)
-            if message.startswith(b"FILE:"):
-                print("Recebendo arquivo do cliente:", client_address)
-                
-                # Extrai nome do arquivo e incrementa contagem
-                filename = f"output_{client_address[0]}_{client_address[1]}.txt"
-                with open(filename, "wb") as file:
-                    while message:
-                        # Escreve o conteúdo do arquivo
-                        file.write(message)
-                        # Recebe o próximo pedaço do arquivo
-                        message, client_address = server_socket.recvfrom(1024)
-                        if not message:
-                            break
-
-                print(f"Arquivo recebido com sucesso! Novo arquivo salvo como: {filename}")
-            
-            else:
-                # Mensagens normais (não arquivos)
-                decoded_message = message.decode('utf-8')
-                print(f"Mensagem recebida de {client_address}: {decoded_message}")
-                
-                # Formata a mensagem para difusão
-                formatted_message = f"{client_address}: {decoded_message}"
-                broadcast_udp(server_socket, formatted_message.encode('utf-8'), client_address)
+            # Formata a mensagem para difusão
+            formatted_message = f"{client_address}: {decoded_message}"
+            broadcast_udp(server_socket, formatted_message.encode('utf-8'), client_address)
 
         except Exception as e:
             print(f"Erro: {e}")

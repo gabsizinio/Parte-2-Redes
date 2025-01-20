@@ -105,23 +105,26 @@ def chat_screen(username):
             message_box.config(state=tk.DISABLED)
             message_box.see(tk.END)  # Rola automaticamente para a última mensagem
 
-    def send_file():
+     def send_file():
         filename = file_name_box.get()
 
+
         try: 
-           # Reading file and sending data to server 
-            fi = open(filename, "r") 
-            data = fi.read() 
-            if data:
-            
+
+            with open(filename, "rb") as fi:  
+
+                # Envia arquivo avisando que é arquivo
+                client.send(f"FILE:{filename}".encode(FORMAT))
+
+                data = fi.read(1024)
+
                 while data: 
-                    client.send(str(data).encode(FORMAT)) 
-                    data = fi.read() 
-                # File is closed after data is sent 
-                fi.close() 
-            
+
+                    client.send(data)  
+                    data = fi.read(1024) 
+
             file_name_box.delete(0, tk.END)  # Limpa a caixa de entrada
-    
+
         except IOError: 
             print('Nome de arquivo invalido ou arquivo não existe') 
 
