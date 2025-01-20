@@ -16,7 +16,6 @@ clients = []    # Lista de sockets dos clientes conectados
 usernames = []  # Lista de nomes de usuários correspondentes
 
 fileno = 0
-idx = 0
 
 def broadcast(message, exclude_client=None):
     """
@@ -39,63 +38,55 @@ def update_user_list():
     broadcast(user_list_message.encode(FORMAT))  # Envia a mensagem para todos os clientes
 
 def handle_client(client):
-    """
-    Gerencia a comunicação com um cliente específico.
-    Lida com mensagens enviadas pelo cliente e desconexões.
-    
-    Args:
-    - client (socket): O socket do cliente conectado.
-    """
+    global fileno 
     while True:
         try:
-            # Recebe mensagens do cliente
-            message = client.recv(1024)  # Limita a mensagem a 1024 bytes  # adicionei o decode
+            
+            message = client.recv(1024)  # Limite do tamanho da mensagem 1024
             
             if not message:
                 break        
             
-            if message.startswith(b"FILE:"): #check if is file
+            if message.startswith(b"FILE:"):  # Verifica se mensagem é arquivo
+                print("Envio de arquivo iniciado")
 
-                print("entrou")
-                # Creating a new file at server end and writing the data 
-                filename = 'output'+str(fileno)+'.txt'
-                fileno = fileno+1
-                fo = open(filename, "w") 
-                
-                while message: 
-                    if not message: 
-                        break
-                    else: 
-                        fo.write(message) 
-                        message = client.recv(1024).decode(FORMAT)
-                print()
-                print('Received successfully! New filename is:', filename) 
-                fo.close() 
+                filename = message[5:].decode(FORMAT)
+
+                fileno += 1
+                full_filename = f'output{fileno}.txt'
+
+                with open(full_filename, "wb") as fo:
+                    while True:
+                        message = client.recv(1024)
+                        if not message:
+                            break
+                        fo.write(message)
+
+                print('Arquivo recebido com sucesso! Nome do novo arquivo:', full_filename) 
+                # Notifica usuarios do arquivo recebido
+                broadcast(f"A new file has been uploaded: {full_filename}".encode(FORMAT), exclude_client=client)
             
             else:    
-                 # Decode the message before formatting
-
-                decoded_message = message.decode(FORMAT)  
-
                 # Difunde a mensagem para outros clientes
-
+                decoded_message = message.decode(FORMAT)  
                 index = clients.index(client)
                 username = usernames[index]
-
-                # Inclui o autor na mensagem
+                
                 formatted_message = f"{username}: {decoded_message}"
-
+                
                 broadcast(formatted_message.encode(FORMAT), exclude_client=client)
-        except:
-            print(message)
+        
+        except Exception as e:
+            print(f"Erro: {e}")
             # Em caso de erro, remove o cliente da lista
-            index = clients.index(client)  # Localiza o índice do cliente na lista
-            clients.remove(client)  # Remove o cliente da lista de sockets
-            username = usernames.pop(index)  # Remove o nome de usuário correspondente
+            index = clients.index(client) # Localiza o índice do cliente na lista
+            clients.remove(client) # Remove o cliente da lista de sockets
+            username = usernames.pop(index) # Remove o nome de usuário correspondente
             client.close()  # Fecha o socket do cliente
-            print(f"{username} saiu do chat.")  # Loga no servidor
-            update_user_list()  # Atualiza a lista de usuários online para todos
+            print(f"{username} saiu do chat.") # Loga no servidor
+            update_user_list() # Atualiza a lista de usuários online para todos
             break
+
 
 def receive_connections():
     """
