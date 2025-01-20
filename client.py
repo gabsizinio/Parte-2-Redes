@@ -8,33 +8,15 @@ HOST = '127.0.0.2'  # Endereço do servidor (localhost)
 PORT = 12345        # Porta para comunicação
 FORMAT = "utf-8"
 
-def connect_to_server(host, port):
-    # Tentativa de conexão UDP
-    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        client.sendto(b"", (host, port))  # Envia mensagem via UDP
-        client.recvfrom(1024)  # Espera uma resposta
-    except socket.error:
-        client.close()  # Fecha o socket UDP antes de tentar a conexão TCP
-
-        # Tentativa de conexão TCP
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Cria um novo socket para TCP
-        try:
-            pass
-        except socket.error:
-            client.close()  # Fecha o socket TCP em caso de falha
-            return None
-        else:
-            return client
-    else:
-        return client
+# Criação do socket para comunicação com o servidor
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Tela de login
 def login_screen():
     # Configuração da janela de login
     login_window = tk.Tk()
     login_window.title("Login")  # Título da janela
-    login_window.geometry("300x200")  # Dimensões da janela
+    login_window.geometry("600x400")  # Dimensões da janela
     login_window.config(bg="#1c1c1c")  # Cor de fundo da janela
 
     # Rótulo para entrada do nome de usuário
@@ -44,9 +26,19 @@ def login_screen():
     username_entry = tk.Entry(login_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff")
     username_entry.pack(pady=5)
 
+    # Rótulo para entrada da senha
+    tk.Label(login_window, text="Senha:", font=("Arial", 12), bg="#1c1c1c", fg="#ffffff").pack(pady=10)
+
+    # Caixa de entrada para a senha com "***" para ocultar a senha
+    password_entry = tk.Entry(login_window, font=("Arial", 12), bg="#333333", fg="#ffffff", insertbackground="#ffffff", show="*")
+    password_entry.pack(pady=5)
+
+
+
     # Função para realizar o login
     def login():
         username = username_entry.get()  # Obtém o nome de usuário digitado
+        username += ":" + password_entry.get()  # Adiciona a senha ao nome de usuário
         if username:  # Verifica se o nome não está vazio
             try:
                 # Tenta conectar ao servidor
@@ -56,7 +48,7 @@ def login_screen():
                 if response.startswith("ERRO"):  # Verifica se houve erro
                     messagebox.showerror("Erro", response)  # Mostra mensagem de erro
                     client.close()  # Fecha a conexão
-                else:
+                else:  # Verifica se o login foi bem-sucedido
                     login_window.destroy()  # Fecha a janela de login
                     chat_screen(username)  # Abre a tela de chat
             except Exception as e:
@@ -134,10 +126,11 @@ def chat_screen(username):
         for user in users:
             user_list.insert(tk.END, user)  # Adiciona os usuários atualizados
 
+    name_chat = username.split(":")[0]
     # Configuração da janela de chat
     chat_window = tk.Tk()
-    chat_window.title(f"Chat - {username}")  # Título da janela com o nome do usuário
-    chat_window.geometry("600x400")  # Dimensões da janela
+    chat_window.title(f"Chat - {name_chat}")  # Título da janela com o nome do usuário
+    chat_window.geometry("1200x800")  # Dimensões da janela
     chat_window.config(bg="#1c1c1c")  # Cor de fundo da janela
 
     # Layout principal
@@ -181,5 +174,4 @@ def chat_screen(username):
 
 # Execução principal do programa
 if __name__ == "__main__":
-    client = connect_to_server(HOST, PORT)
     login_screen()  # Inicia o programa com a tela de login
