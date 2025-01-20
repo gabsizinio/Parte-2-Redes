@@ -105,7 +105,7 @@ def chat_screen(username):
             message_box.config(state=tk.DISABLED)
             message_box.see(tk.END)  # Rola automaticamente para a última mensagem
 
-     def send_file():
+    def send_file():
         filename = file_name_box.get()
 
 
