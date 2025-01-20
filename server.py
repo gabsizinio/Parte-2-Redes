@@ -6,14 +6,29 @@ HOST = '127.0.0.2'  # Endereço IP do servidor (localhost)
 PORT = 12345        # Porta onde o servidor ouvirá conexões
 FORMAT = "utf-8"
 
+# Criação do socket do servidor
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Socket TCP
+server.bind((HOST, PORT))  # Associa o socket ao endereço e porta configurados
+server.listen()  # Habilita o servidor para aceitar conexões
+
 # Listas para armazenar informações dos clientes conectados
 clients = []    # Lista de sockets dos clientes conectados
 usernames = []  # Lista de nomes de usuários correspondentes
 
 fileno = 0
-idx = 0
 
-def broadcast_tcp(message, exclude_client=None):
+# Mapa de senhas dos usuários
+passwords = {
+    "admin": "admin",
+    "dely": "1234",
+    "arthur": "4321",
+    "gabriel": "senha",
+    "victor": "123456",
+}
+
+
+
+def broadcast(message, exclude_client=None, private=False, private_client=None):
     """
     Envia mensagens para todos os clientes conectados, exceto o cliente que gerou a mensagem.
     
@@ -21,50 +36,23 @@ def broadcast_tcp(message, exclude_client=None):
     - message (bytes): Mensagem a ser enviada.
     - exclude_client (socket, optional): Cliente a ser excluído do envio.
     """
+    if private:
+        private_client.send(message)
+        return 
+
     for client in clients:   
         if client != exclude_client:  # Não envia a mensagem ao cliente que gerou o evento
             client.send(message)
 
-def broadcast_udp(server_socket, message, exclude_address=None):
-    """
-    Envia mensagens para todos os clientes conectados, exceto o remetente (se especificado).
-
-    Args:
-    - server_socket (socket): O socket do servidor UDP.
-    - message (bytes): A mensagem a ser enviada.
-    - exclude_address (tuple): Endereço (host, port) do cliente a ser excluído do envio.
-    """
-    for client_address in clients:
-        if client_address != exclude_address:
-            server_socket.sendto(message, client_address)
-
-def update_user_list_tcp():
+def update_user_list():
     """
     Atualiza a lista de usuários online para todos os clientes conectados.
     Envia uma mensagem especial no formato "USERS:username1,username2,..." para todos.
     """
     user_list_message = "USERS:" + ",".join(usernames)  # Formata a lista de usuários como string
-    broadcast_tcp(user_list_message.encode(FORMAT))  # Envia a mensagem para todos os clientes
+    broadcast(user_list_message.encode(FORMAT))  # Envia a mensagem para todos os clientes
 
-def update_user_list_udp(server_socket):
-    """
-    Atualiza a lista de usuários online e envia para todos os clientes.
-
-    Args:
-    - server_socket (socket): O socket do servidor UDP.
-    """
-    user_list = "USERS:" + ",".join(usernames)  # Formata a lista de usuários
-    for client_address in clients:
-        server_socket.sendto(user_list.encode(FORMAT), client_address)
-
-def handle_client_tcp(client):
-    """
-    Gerencia a comunicação com um cliente específico.
-    Lida com mensagens enviadas pelo cliente e desconexões.
-    
-    Args:
-    - client (socket): O socket do cliente conectado.
-    """
+def handle_client(client):
     global fileno 
     while True:
         try:
@@ -91,66 +79,44 @@ def handle_client_tcp(client):
 
                 print('Arquivo recebido com sucesso! Nome do novo arquivo:', full_filename) 
                 # Notifica usuarios do arquivo recebido
-                broadcast_tcp(f"A new file has been uploaded: {full_filename}".encode(FORMAT), exclude_client = client)
+                broadcast(f"A new file has been uploaded: {full_filename}".encode(FORMAT), exclude_client=client)
             
             else:    
-                 # Decode the message before formatting
-
-                decoded_message = message.decode(FORMAT)  
-
                 # Difunde a mensagem para outros clientes
+                decoded_message = message.decode(FORMAT)  
+                private = False
+                private_client = None
+                if decoded_message.startswith("@"):
+                    private = True
+                    private_client = clients[usernames.index(decoded_message.split(" ")[0][1:])]
+
+                    # a mensagem é do primeiro espaço em diante
+                    decoded_message = decoded_message.split(" ", 1)[1]
+                    decoded_message = f"(private) {decoded_message}"
+
 
                 index = clients.index(client)
                 username = usernames[index]
 
-                # Inclui o autor na mensagem
+
+                
                 formatted_message = f"{username}: {decoded_message}"
-
-                broadcast_tcp(formatted_message.encode(FORMAT), exclude_client=client)
-        except:
-            print(message)
-            # Em caso de erro, remove o cliente da lista
-            index = clients.index(client)  # Localiza o índice do cliente na lista
-            clients.remove(client)  # Remove o cliente da lista de sockets
-            username = usernames.pop(index)  # Remove o nome de usuário correspondente
-            client.close()  # Fecha o socket do cliente
-            print(f"{username} saiu do chat.")  # Loga no servidor
-            update_user_list_tcp()  # Atualiza a lista de usuários online para todos
-            break
-
-def handle_client_udp(server_socket):
-    """
-    Gerencia a comunicação com clientes via UDP.
-    Lida com mensagens enviadas pelos clientes e mensagens de arquivo.
-
-    Args:
-    - server_socket (socket): O socket do servidor configurado para UDP.
-    """
-    
-    # Não há envio de arquivos por socket UDP
-    print("Servidor UDP está pronto para receber mensagens.")
-    
-    while True:
-        try:
-            # Recebe mensagens dos clientes (mensagem + endereço do cliente)
-            message, client_address = server_socket.recvfrom(1024)  # Limita a mensagem a 1024 bytes
-
-            if not message:
-                continue  # Ignora mensagens vazias
-           
-            decoded_message = message.decode('utf-8')
-            print(f"Mensagem recebida de {client_address}: {decoded_message}")
-
-            # Formata a mensagem para difusão
-            formatted_message = f"{client_address}: {decoded_message}"
-            broadcast_udp(server_socket, formatted_message.encode('utf-8'), client_address)
-
+                
+                broadcast(formatted_message.encode(FORMAT), exclude_client=client, private=private, private_client=private_client)
+        
         except Exception as e:
             print(f"Erro: {e}")
-            continue
+            # Em caso de erro, remove o cliente da lista
+            index = clients.index(client) # Localiza o índice do cliente na lista
+            clients.remove(client) # Remove o cliente da lista de sockets
+            username = usernames.pop(index) # Remove o nome de usuário correspondente
+            client.close()  # Fecha o socket do cliente
+            print(f"{username} saiu do chat.") # Loga no servidor
+            update_user_list() # Atualiza a lista de usuários online para todos
+            break
 
 
-def receive_connections_tcp():
+def receive_connections():
     """
     Aceita conexões de clientes e inicia uma thread para gerenciar cada conexão.
     """
@@ -161,84 +127,41 @@ def receive_connections_tcp():
         print(f"Conexão estabelecida com {address}")
 
         # Solicita o nome de usuário do cliente
-        client.send("USERNAME".encode(FORMAT))  # Envia uma solicitação para o cliente
-        username = client.recv(1024).decode(FORMAT)  # Recebe o nome de usuário do cliente
+        #client.send("USERNAME".encode(FORMAT))  # Envia uma solicitação para o cliente
+        
+        ans = client.recv(1024).decode(FORMAT)  # Recebe o nome de usuário do cliente
+
+        # O nome de usuário vem junto com a senha, separados por um ":"
+        username = ans.split(":")[0] # Pega o nome de usuário, que é a primeira parte da mensagem
+        password = ans.split(":")[1] # Pega a senha, que é a segunda parte da mensagem
+
 
         # Verifica se o nome de usuário já está em uso
         if username in usernames:
             client.send("ERRO: Nome de usuário já está em uso.".encode(FORMAT))
+            print(f"Usuário {username} tentou entrar com nome já em uso.")
             client.close()  # Fecha a conexão caso o nome já esteja em uso
             continue
 
-        # Adiciona o cliente à lista de conexões
-        usernames.append(username)  # Adiciona o nome de usuário à lista
-        clients.append(client)  # Adiciona o socket à lista de clientes
+        # Verifica se a senha está correta
+        elif passwords[username] != password:
+            client.send("ERRO: Senha incorreta.".encode(FORMAT))
+            print(f"Usuário {username} tentou entrar com senha incorreta.")
+            
+            
+        else:
+            client.send("OK".encode(FORMAT))
 
-        print(f"Usuário {username} entrou no chat.")  # Loga a entrada do usuário
-        update_user_list_tcp()  # Atualiza a lista de usuários online para todos os clientes
+            # Adiciona o cliente à lista de conexões
+            usernames.append(username)  # Adiciona o nome de usuário à lista
+            clients.append(client)  # Adiciona o socket à lista de clientes
 
-        # Cria uma thread para gerenciar a comunicação com o cliente
-        thread = threading.Thread(target=handle_client_tcp, args=(client,))
-        thread.start()
+            print(f"Usuário {username} entrou no chat.")  # Loga a entrada do usuário
+            update_user_list()  # Atualiza a lista de usuários online para todos os clientes
 
-def receive_messages_udp(server_socket):
-    """
-    Gerencia a recepção de mensagens de clientes via UDP.
-    Como o UDP não tem conexões persistentes, ele apenas recebe datagramas e responde conforme necessário.
-    """
-    print("Servidor UDP ativo e aguardando mensagens...")
+            # Cria uma thread para gerenciar a comunicação com o cliente
+            thread = threading.Thread(target=handle_client, args=(client,))
+            thread.start()
 
-    while True:
-        try:
-            # Recebe uma mensagem do cliente (dados e endereço do cliente)
-            message, client_address = server_socket.recvfrom(1024)  # Limita a mensagem a 1024 bytes
-
-            # Verifica se o cliente já está na lista de clientes conhecidos
-            if client_address not in clients:
-                # Solicita o nome de usuário para novos clientes
-                server_socket.sendto("USERNAME".encode(FORMAT), client_address)
-                username_message, _ = server_socket.recvfrom(1024)
-                username = username_message.decode(FORMAT)
-
-                # Verifica se o nome de usuário já está em uso
-                if username in usernames:
-                    server_socket.sendto("ERRO: Nome de usuário já está em uso.".encode(FORMAT), client_address)
-                    continue  # Ignora este cliente
-
-                # Adiciona o cliente à lista de usuários e clientes conhecidos
-                usernames.append(username)
-                clients.append(client_address)
-                print(f"Usuário {username} conectado a partir de {client_address}.")
-
-                # Atualiza a lista de usuários para todos os clientes
-                update_user_list_udp(server_socket)
-
-            # Processa mensagens recebidas
-            decoded_message = message.decode(FORMAT)
-            if(decoded_message != ""):
-                print(f"Mensagem recebida de {username}: {decoded_message}")
-
-            # Difunde a mensagem para todos os clientes, exceto o remetente
-            formatted_message = f"{usernames[clients.index(client_address)]}: {decoded_message}"
-            broadcast_udp(server_socket, formatted_message.encode(FORMAT), exclude_address=client_address)
-
-        except Exception as e:
-            print(f"Erro: {e}")
-            continue
-
-
-"""Inicializa o servidor, permitindo escolher entre TCP e UDP."""
-choice = input("Escolha o tipo de conexão do servidor (TCP/UDP): ").strip().upper()
-if choice == "TCP":
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST, PORT))
-    server.listen()
-    print(f"Servidor TCP iniciado em {HOST}:{PORT}")
-    receive_connections_tcp()
-elif choice == "UDP":
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server.bind((HOST, PORT))
-    print(f"Servidor UDP iniciado em {HOST}:{PORT}")
-    receive_messages_udp(server)
-else:
-    print("Escolha inválida. Por favor, escolha entre 'TCP' ou 'UDP'.")
+# Inicia o servidor
+receive_connections()
